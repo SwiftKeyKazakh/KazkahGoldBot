@@ -1,0 +1,108 @@
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+
+BOT_TOKEN = "ТВОЙ_ТОКЕН"
+ADMIN_USERNAME = "@X6TREAKS"
+REKVIZITY = "Kaspi: 4400 4302 0679 2373 (Евгений Г.)"
+EXCHANGE_RATE = 500  # 100 голды = 500 тенге
+
+user_state = {}
+
+# Старт
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = [
+        [InlineKeyboardButton("💰 Купить голду", callback_data="buy")],
+        [InlineKeyboardButton("📷 Отправить чек", callback_data="chek")],
+        [InlineKeyboardButton("🎯 Вывод", callback_data="sell")]
+    ]
+    await update.message.reply_text(
+        "Привет! Я бот магазина *Kazakh Gold* — покупай и выводи голду быстро и удобно!",
+        reply_markup=InlineKeyboardMarkup(kb),
+        parse_mode="Markdown"
+    )
+
+# Кнопки
+async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "buy":
+        user_state[query.from_user.id] = "buy"
+        await query.message.reply_text("Сколько голды хотите купить?")
+
+    elif query.data == "chek":
+        await query.message.reply_text("Отправьте чек (фото/скрин).")
+
+    elif query.data == "sell":
+        user_state[query.from_user.id] = "sell"
+        await query.message.reply_text("Сколько голды хотите вывести?")
+
+    elif query.data.startswith("ok_"):
+        user_id = int(query.data.split("_")[1])
+        await context.bot.send_message(chat_id=user_id, text="✅ Чек подтверждён! Голда зачислена.")
+        await query.edit_message_text("Подтверждено.")
+
+    elif query.data.startswith("done_"):
+        user_id = int(query.data.split("_")[1])
+        await context.bot.send_message(chat_id=user_id, text="✅ Голда выведена на ваш аккаунт!")
+        await query.edit_message_text("Вывод выполнен.")
+
+# Сообщения
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    username = update.message.from_user.username or "без ника"
+    text = update.message.text
+
+    if user_state.get(user_id) == "buy":
+        try:
+            gold = int(text)
+            price = gold * EXCHANGE_RATE // 100
+            await update.message.reply_text(
+                f"Цена: {gold} голды = {price}₸\n\nРеквизиты:\n{REKVIZITY}\n\nПосле оплаты отправьте чек!"
+            )
+            user_state[user_id] = None
+        except:
+            await update.message.reply_text("Введите количество голды числом.")
+
+    elif user_state.get(user_id) == "sell":
+        try:
+            gold = int(text)
+            market_price = round(gold * 1.25)  # учёт 25% комиссии
+            await update.message.reply_text(
+                f"Чтобы вывести {gold} голды, выставьте скин на маркет за *{market_price}* голды.\n"
+                f"(Комиссия 25% учтена)",
+                parse_mode="Markdown"
+            )
+            await context.bot.send_message(
+                chat_id=ADMIN_USERNAME,
+                text=f"🔁 Запрос вывода:\n@{username}\nГолда: {gold}\nЦена с учётом комиссии: {market_price}",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ Отправлено", callback_data=f"done_{user_id}")]
+                ])
+            )
+            user_state[user_id] = None
+        except:
+            await update.message.reply_text("Пожалуйста, введите количество голды числом.")
+
+# Чек
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    uid = user.id
+    username = user.username or "без ника"
+    caption = f"🧾 Новый чек от @{username}"
+
+    await context.bot.send_photo(
+        chat_id=ADMIN_USERNAME,
+        photo=update.message.photo[-1].file_id,
+        caption=caption,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Подтвердить", callback_data=f"ok_{uid}")]])
+    )
+    await update.message.reply_text("Чек отправлен! Ожидайте подтверждения.")
+
+# Запуск
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(handle_buttons))
+app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+app.run_polling()
