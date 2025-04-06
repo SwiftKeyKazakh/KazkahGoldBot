@@ -1,14 +1,14 @@
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-BOT_TOKEN = "ТВОЙ_ТОКЕН"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_USERNAME = "@X6TREAKS"
 REKVIZITY = "Kaspi: 4400 4302 0679 2373 (Евгений Г.)"
 EXCHANGE_RATE = 500  # 100 голды = 500 тенге
 
 user_state = {}
 
-# Старт
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [
         [InlineKeyboardButton("💰 Купить голду", callback_data="buy")],
@@ -21,7 +21,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-# Кнопки
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -47,7 +46,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=user_id, text="✅ Голда выведена на ваш аккаунт!")
         await query.edit_message_text("Вывод выполнен.")
 
-# Сообщения
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     username = update.message.from_user.username or "без ника"
@@ -67,11 +65,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif user_state.get(user_id) == "sell":
         try:
             gold = int(text)
-            market_price = round(gold * 1.25)  # учёт 25% комиссии
+            market_price = round(gold * 1.25)  # 25% комиссия
             await update.message.reply_text(
                 f"Чтобы вывести {gold} голды, выставьте скин на маркет за *{market_price}* голды.\n"
-                f"(Комиссия 25% учтена)",
-                parse_mode="Markdown"
+                f"(Комиссия учтена)", parse_mode="Markdown"
             )
             await context.bot.send_message(
                 chat_id=ADMIN_USERNAME,
@@ -84,7 +81,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("Пожалуйста, введите количество голды числом.")
 
-# Чек
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     uid = user.id
